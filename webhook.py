@@ -185,7 +185,11 @@ async def swapInfo(data, txh, wallet):
                 logo_out = metadata_out[2] if metadata_out[2] else ""
                 SPL_in_symbol = metadata_in[1]
                 logo_in = metadata_in[2] if metadata_in[2] else ""
-                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh]
+                createdOn_in = metadata_in[3] if metadata_in[3] else None
+                twitter_in = metadata_in[4] if metadata_in[4] else None
+                telegram_in = metadata_in[5] if metadata_in[5] else None
+                website_in = metadata_in[6] if metadata_in[6] else None
+                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
             elif token_change[0] < 0:
                 metadata_in =  await get_metaData(token_addresses[1])
                 metadata_out = await get_metaData(token_addresses[0])
@@ -193,11 +197,15 @@ async def swapInfo(data, txh, wallet):
                 SPL_out = abs(token_change[0])
                 SPL_in_CA = token_addresses[1]
                 SPL_out_CA = token_addresses[0]
-                SPL_out_symbol = metadata_out[0]
+                SPL_out_symbol = metadata_out[1]
                 logo_out = metadata_out[2] if metadata_out[2] else ""
                 SPL_in_symbol = metadata_in[1]
-                logo_in = metadata_in[2] if metadata_in[2] else "" 
-                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh]
+                logo_in = metadata_in[2] if metadata_in[2] else ""
+                createdOn_in = metadata_in[3] if metadata_in[3] else None
+                twitter_in = metadata_in[4] if metadata_in[4] else None
+                telegram_in = metadata_in[5] if metadata_in[5] else None
+                website_in = metadata_in[6] if metadata_in[6] else None
+                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
         elif len(token_addresses) == 1:
             SOL_change = (data[0]['meta']['preBalances'][0] - data['meta']['postBalances'][0]) / 1e9
             if SOL_change < 0:
@@ -210,7 +218,11 @@ async def swapInfo(data, txh, wallet):
                 logo_out = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
                 SPL_in_symbol = metadata_in[1]
                 logo_in = metadata_in[2] if metadata_in[2] else ""
-                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh]
+                createdOn_in = metadata_in[3] if metadata_in[3] else None
+                twitter_in = metadata_in[4] if metadata_in[4] else None
+                telegram_in = metadata_in[5] if metadata_in[5] else None
+                website_in = metadata_in[6] if metadata_in[6] else None
+                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
             elif SOL_change > 0:
                 metadata_out = await get_metaData(token_addresses[0])
                 SPL_out = abs(token_change[0])
@@ -221,7 +233,11 @@ async def swapInfo(data, txh, wallet):
                 SPL_in_symbol = 'So11111111111111111111111111111111111111112'
                 SPL_in_symbol = 'SOL'
                 logo_in = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
-                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh]
+                createdOn_in = None
+                twitter_in = None
+                telegram_in = None
+                website_in = None
+                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
         print(info)
         return info
     except Exception as e:
@@ -244,9 +260,10 @@ async def process_webhook(data, bot):
                 ordered_address_data = [address_data.get(address) for address in account_keys if address in address_data]
                 if ordered_address_data:
                     tracked_wallet = ordered_address_data[0][1]
-                    await cursor.execute('SELECT channel FROM wallets WHERE address = ?', (tracked_wallet,))
-                    channel_rows = await cursor.fetchall()
-                    channel_ids = [row[0] for row in channel_rows]
+                    await cursor.execute('SELECT name, channel FROM wallets WHERE address = ?', (tracked_wallet,))
+                    selected_rows = await cursor.fetchall()
+                    nametags = [row[0] for row in selected_rows]
+                    channel_ids = [row[1] for row in selected_rows]
                     logger.debug(f"Channel IDs for tracked wallet {tracked_wallet}: {channel_ids}")
             else:
                 print('No tracked wallets found')
@@ -256,26 +273,49 @@ async def process_webhook(data, bot):
     logger.info(f"Transaction Hash is {signature} and the wallet being tracked is {tracked_wallet}.")
     info = await swapInfo(data, signature, tracked_wallet)
     if info:
-        await send_embedded_transaction(info, channel_ids, bot=bot)
+        await send_embedded_transaction(info, nametags, channel_ids, bot=bot)
     else:
         logger.error("Error processing swapInfo: Info is None")
 
-async def send_embedded_transaction(info, channel_ids, bot):
-    embed = discord.Embed(
-        title="Transaction Detected", 
-        description=f"Nametag {info[8]} swapped {info[0]} {info[2]} for {info[4]} {info[6]}", 
-        colour=0xf6ee04, 
-        timestamp=datetime.datetime.now()
-    )
-    embed.set_author(name="Swap")
-    embed.add_field(name="Wallet", value=f"[{info[8][:4]}...{info[8][-4:]}](https://solscan.io/account/{info[8]})", inline=True)
-    embed.add_field(name="Transaction", value=f"[{info[9][:4]}...{info[9][-4:]}](https://solscan.io/tx/{info[9]})", inline=True)
-    embed.add_field(name="Contract address", value=f"placeholder", inline=False)
-    embed.set_thumbnail(url=info[7])
-    embed.set_footer(text="Monitor", icon_url="https://slate.dan.onl/slate.png")
-    
+async def send_embedded_transaction(info, nametags, channel_ids, bot):
     print(channel_ids)
     for i in range(len(channel_ids)):
+        embed = discord.Embed(
+            title="Transaction Detected", 
+            description=f"{nametags[i]} has swapped {info[0]} {info[2]} for {info[4]} {info[6]}", 
+            colour=0xf6ee04, 
+            timestamp=datetime.datetime.now()
+        )
+        embed.set_author(name="Swap")
+        embed.add_field(name="Wallet", value=f"[{info[8][:4]}...{info[8][-4:]}](https://solscan.io/account/{info[8]})", inline=True)
+        embed.add_field(name="Transaction", value=f"[{info[9][:4]}...{info[9][-4:]}](https://solscan.io/tx/{info[9]})", inline=True)
+        social_links = []
+        if info[11]:
+            social_links.append(f"[Twitter]({info[11]})")
+        if info[12]:
+            social_links.append(f"[Telegram]({info[12]})")
+        if info[13]:
+            social_links.append(f"[Website]({info[13]})")
+
+        social_links_str = " | ".join(social_links) if social_links else None
+        if social_links_str:
+            embed.add_field(name="Socials", value=social_links_str, inline=False)
+        
+        links = [
+            f"[Photon](https://photon-sol.tinyastro.io/en/r/@proficyio/{info[5]})",
+            f"[BullX](https://bullx.io/terminal?chainId=1399811149&address={info[5]})",
+            f"[DEXScreener](https://dexscreener.com/solana/{info[5]})"
+        ]
+        if info[10] == 'https://pump.fun':
+            links.append(f"[Pumpfun](https://pump.fun/{info[5]})")
+        links_str = " | ".join(links)
+
+        embed.add_field(name="Links", value=links_str, inline=False)
+        if info[5]!= "So11111111111111111111111111111111111111112":
+            embed.add_field(name="Contract Address", value=f"```{info[5]}```", inline=False)
+        embed.set_thumbnail(url=info[7])
+        embed.set_footer(text="Monitor", icon_url="https://slate.dan.onl/slate.png")
+
         print(channel_ids[i])
         await bot.wait_until_ready()
         channel = bot.get_channel(channel_ids[i])

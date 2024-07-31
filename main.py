@@ -22,7 +22,7 @@ class MyBot(commands.Bot):
         app.add_routes([web.post('/helius-webhook', handle_webhook)])
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, '116.203.241.20', 5000)
+        site = web.TCPSite(runner, '0.0.0.0', 5000)
         await site.start()
     
     async def load_cogs(self):
