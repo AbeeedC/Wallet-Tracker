@@ -34,7 +34,7 @@ class Tracker(commands.Cog):
     
     async def modify_address(self, address: str, action: str):
         if not self.is_valid_solana_address(address):
-            return 'Invalid Solana address'
+            print('Invalid Solana address')
         
         headers = {
             'Content-Type': 'application/json',
@@ -57,10 +57,9 @@ class Tracker(commands.Cog):
                     print('Address is not being tracked')
                 else:
                     account_addresses.remove(address)
-                    result_message = f"No longer tracking {address}."
-                    logger.debug(f"Address removal message set: {result_message}")
+                    logger.debug(f"Address removed from Webhook: {address}")
             else:
-                return 'Invalid action specified'
+                print('Invalid action specified')
 
             logger.debug(f"Updated account addresses: {account_addresses}")
             
@@ -92,6 +91,10 @@ class Tracker(commands.Cog):
     
     @tracker_group.command(name="add", description="Track an address")
     async def add(self, interaction: discord.Interaction, address: str, channel: discord.TextChannel, nametag: str = None):
+        if not self.is_valid_solana_address(address):
+            await interaction.response.defer()
+            await interaction.followup.send('Invalid Solana address')
+            return
         if nametag is None:
             nametag = address
         async with aiosqlite.connect("main.db") as db:
@@ -111,7 +114,7 @@ class Tracker(commands.Cog):
                     await interaction.followup.send('Address is already being tracked')
                     return
 
-                await cursor.execute('INSERT INTO wallets (name, address, guild, channel) VALUES (?, ?, ?, ?)', (nametag, address, interaction.guild_id, channel.id))
+                await cursor.execute('INSERT INTO wallets (name, address, guild, channel) VALUES (?, ?, ?, ?)', (nametag, address, interaction.guild_id, channel.id,))
                 await db.commit()
                 await interaction.response.defer() 
                 await self.modify_address(address, 'add')
@@ -128,11 +131,30 @@ class Tracker(commands.Cog):
                     await interaction.followup.send('Address is not being tracked')
                     return
                 
-                await cursor.execute('DELETE FROM wallets WHERE address = ? AND guild = ?', (address, interaction.guild_id))
+                await cursor.execute('DELETE FROM wallets WHERE address = ? AND guild = ?', (address, interaction.guild_id,))
                 await db.commit()
                 await interaction.response.defer()
                 await self.modify_address(address, 'remove')
                 await interaction.followup.send(f'No longer tracking {address}')
+
+    @tracker_group.command(name="list", description="List of tracked addresses")
+    async def list(self, interaction: discord.Interaction):
+        async with aiosqlite.connect("main.db") as db:
+            async with db.cursor() as cursor:
+                await cursor.execute('SELECT name, address FROM wallets WHERE guild = ?', (interaction.guild_id,))
+                selected_rows = await cursor.fetchall()
+                nametags = [row[0] for row in selected_rows]
+                addresses = [row[1] for row in selected_rows]
+        embed = discord.Embed(
+            title="Wallet list",
+            description="You are currently tracking the following wallets:",
+            colour=0xf6ee04,
+        )
+        address_list = '\n'.join([f"**{i+1}.** [**{nametags[i]}**](https://solscan.io/account/{addresses[i]}): `{addresses[i]}`" for i in range(len(addresses))])
+        embed.add_field(name="",value=address_list, inline=False)
+        embed.set_footer(text="Monitor", icon_url="https://slate.dan.onl/slate.png")
+        await interaction.response.defer()
+        await interaction.followup.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Tracker(bot))

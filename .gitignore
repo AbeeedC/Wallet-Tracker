@@ -1,7 +1,7 @@
 # .gitignore
 .env
 main.db
-
+discord.log
 venv/
 __pycache__/
 *.pyc
