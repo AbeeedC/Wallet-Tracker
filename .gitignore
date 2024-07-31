@@ -1,2 +1,8 @@
 # .gitignore
 .env
+main.db
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
