@@ -8,12 +8,98 @@ from solders.pubkey import Pubkey # type: ignore
 import os
 from dotenv import load_dotenv
 import aiosqlite
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
-GUILD_ID = 443827457062207489  # Replace with your actual guild ID
 api_key = os.getenv('HELIUS_KEY')
 webhook_url = "https://api.helius.xyz/v0/webhooks/7723a8c5-233e-4180-83f1-d54c40778539"
+
+class Pagination(discord.ui.View):
+    def __init__(self, interaction: discord.Interaction, get_page: Callable):
+        self.interaction = interaction
+        self.get_page = get_page
+        self.total_pages: Optional[int] = None
+        self.index = 1
+        super().__init__(timeout=100)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user == self.interaction.user:
+            return True
+        else:
+            emb = discord.Embed(
+                description="Only the author of the command can perform this action.",
+                color=16711680
+            )
+            await interaction.response.send_message(embed=emb, ephemeral=True)
+            return False
+
+    async def navigate(self):
+        emb, self.total_pages = await self.get_page(self.index)
+        if self.total_pages > 1:
+            self.update_buttons()
+        await self.interaction.response.send_message(embed=emb, view=self)
+
+    async def edit_page(self, interaction: discord.Interaction):
+        emb, self.total_pages = await self.get_page(self.index)
+        self.update_buttons()
+        await interaction.response.edit_message(embed=emb, view=self)
+
+    def update_buttons(self):
+        self.first_page_button.disabled = self.index == 1
+        self.last_page_button.disabled = self.index == self.total_pages
+
+    @discord.ui.button(emoji="⏮️", style=discord.ButtonStyle.blurple)
+    async def first_page_button(self, interaction: discord.Interaction, button: discord.Button):
+        self.index = 1
+        await self.edit_page(interaction)
+
+    @discord.ui.button(emoji="◀️", style=discord.ButtonStyle.blurple)
+    async def previous(self, interaction: discord.Interaction, button: discord.Button):
+        self.index -= 1
+        await self.edit_page(interaction)
+
+    @discord.ui.button(label="Go to page", style=discord.ButtonStyle.gray)
+    async def go_to_page_button(self, interaction: discord.Interaction, button: discord.Button):
+        modal = GoToPageModal(self)
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(emoji="▶️", style=discord.ButtonStyle.blurple)
+    async def next(self, interaction: discord.Interaction, button: discord.Button):
+        self.index += 1
+        await self.edit_page(interaction)
+
+    @discord.ui.button(emoji="⏭️", style=discord.ButtonStyle.blurple)
+    async def last_page_button(self, interaction: discord.Interaction, button: discord.Button):
+        self.index = self.total_pages
+        await self.edit_page(interaction)
+
+    async def on_timeout(self):
+        # Remove buttons on timeout
+        message = await self.interaction.original_response()
+        await message.edit(view=None)
+
+    @staticmethod
+    def compute_total_pages(total_results: int, results_per_page: int) -> int:
+        return ((total_results - 1) // results_per_page) + 1
+    
+class GoToPageModal(discord.ui.Modal, title="Go to Page"):
+    page_number = discord.ui.TextInput(label="Page number", style=discord.TextStyle.short)
+
+    def __init__(self, paginator: Pagination):
+        super().__init__()
+        self.paginator = paginator
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            page = int(self.page_number.value)
+            if 1 <= page <= self.paginator.total_pages:
+                self.paginator.index = page
+                await self.paginator.edit_page(interaction)
+            else:
+                await interaction.response.send_message(f"Invalid page number. Please enter a number between 1 and {self.paginator.total_pages}.", ephemeral=True)
+        except ValueError:
+            await interaction.response.send_message("Invalid input. Please enter a valid page number.", ephemeral=True)
 
 class Tracker(commands.Cog):
     def __init__(self, bot):
@@ -21,8 +107,7 @@ class Tracker(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        await self.bot.tree.sync(guild=discord.Object(id=GUILD_ID))  # Sync commands for a specific guild
-        logger.debug(f"{self.__class__.__name__} is online! running new version V0.9")
+        logger.debug(f"{self.__class__.__name__} is online! running new version V1.4")
 
     @staticmethod
     def is_valid_solana_address(address: str) -> bool:
@@ -138,30 +223,32 @@ class Tracker(commands.Cog):
                 await interaction.followup.send(f'No longer tracking {address}')
 
     @tracker_group.command(name="list", description="List of tracked addresses")
-    async def list(self, interaction: discord.Interaction):
-        async with aiosqlite.connect("main.db") as db:
-            async with db.cursor() as cursor:
-                await cursor.execute('SELECT name, address FROM wallets WHERE guild = ?', (interaction.guild_id,))
-                selected_rows = await cursor.fetchall()
-                nametags = [row[0] for row in selected_rows]
-                addresses = [row[1] for row in selected_rows]
-        if addresses:
+    async def list_wallets(self, interaction: discord.Interaction):
+        async def get_page(index: int):
+            async with aiosqlite.connect("main.db") as db:
+                async with db.cursor() as cursor:
+                    await cursor.execute('SELECT name, address FROM wallets WHERE guild = ?', (interaction.guild_id,))
+                    selected_rows = await cursor.fetchall()
+                    nametags = [row[0] for row in selected_rows]
+                    addresses = [row[1] for row in selected_rows]
+
+            per_page = 5
+            total_pages = Pagination.compute_total_pages(len(addresses), per_page)
+            start_index = (index - 1) * per_page
+            end_index = start_index + per_page
+            data = [f"**{i+1}.** [**{nametags[i]}**](https://solscan.io/account/{addresses[i]}): `{addresses[i]}`" for i in range(start_index, min(end_index, len(addresses)))]
+
             embed = discord.Embed(
-                title="Wallet list",
+                title=f"Wallet list",
                 description="You are currently tracking the following wallets:",
                 colour=0xf6ee04,
             )
-        else:
-            embed = discord.Embed(
-                title="Wallet list",
-                description="No wallets being tracked.",
-                colour=0xf6ee04,
-            )
-        address_list = '\n'.join([f"**{i+1}.** [**{nametags[i]}**](https://solscan.io/account/{addresses[i]}): `{addresses[i]}`" for i in range(len(addresses))])
-        embed.add_field(name="",value=address_list, inline=False)
-        embed.set_footer(text="Monitor", icon_url="https://slate.dan.onl/slate.png")
-        await interaction.response.defer()
-        await interaction.followup.send(embed=embed)
+            embed.add_field(name="", value="\n".join(data), inline=False)
+            embed.set_footer(text=f"Page {index}/{total_pages}")
+            return embed, total_pages
+
+        paginator = Pagination(interaction, get_page)
+        await paginator.navigate()
 
 async def setup(bot):
     await bot.add_cog(Tracker(bot))
