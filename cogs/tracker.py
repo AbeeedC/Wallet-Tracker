@@ -145,11 +145,18 @@ class Tracker(commands.Cog):
                 selected_rows = await cursor.fetchall()
                 nametags = [row[0] for row in selected_rows]
                 addresses = [row[1] for row in selected_rows]
-        embed = discord.Embed(
-            title="Wallet list",
-            description="You are currently tracking the following wallets:",
-            colour=0xf6ee04,
-        )
+        if addresses:
+            embed = discord.Embed(
+                title="Wallet list",
+                description="You are currently tracking the following wallets:",
+                colour=0xf6ee04,
+            )
+        else:
+            embed = discord.Embed(
+                title="Wallet list",
+                description="No wallets being tracked.",
+                colour=0xf6ee04,
+            )
         address_list = '\n'.join([f"**{i+1}.** [**{nametags[i]}**](https://solscan.io/account/{addresses[i]}): `{addresses[i]}`" for i in range(len(addresses))])
         embed.add_field(name="",value=address_list, inline=False)
         embed.set_footer(text="Monitor", icon_url="https://slate.dan.onl/slate.png")

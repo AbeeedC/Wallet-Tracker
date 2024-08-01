@@ -163,86 +163,82 @@ def is_valid_transaction(webhook_data, address):
     print('not valid transaction')
     return False
 
-async def swapInfo(data, txh, wallet):
-    try:    
-        postTokenBalances = data[0]['meta']['postTokenBalances']
-        preTokenBalances = data[0]['meta']['preTokenBalances']
-        token_addresses = [i['mint'] for i in postTokenBalances if i['owner'] == wallet] if len([i['mint'] for i in postTokenBalances if i['owner'] == wallet]) != 0 else []
-        SPL_post_amount = [i['uiTokenAmount']['uiAmountString'] for i in postTokenBalances if i['owner'] == wallet] if [i['uiTokenAmount']['uiAmountString'] for i in postTokenBalances if i['owner'] == wallet] else [0]
-        SPL_pre_amount = [i['uiTokenAmount']['uiAmountString'] for i in preTokenBalances if i['owner'] == wallet] if [i['uiTokenAmount']['uiAmountString'] for i in preTokenBalances if i['owner'] == wallet] else [0]
-        token_change = [float(xi) - float(yi) for xi, yi in zip(SPL_post_amount, SPL_pre_amount)]
+async def swapInfo(data, txh, wallet):  
+    postTokenBalances = data[0]['meta']['postTokenBalances']
+    preTokenBalances = data[0]['meta']['preTokenBalances']
+    token_addresses = [i['mint'] for i in postTokenBalances if i['owner'] == wallet] if len([i['mint'] for i in postTokenBalances if i['owner'] == wallet]) != 0 else []
+    SPL_post_amount = [i['uiTokenAmount']['uiAmountString'] for i in postTokenBalances if i['owner'] == wallet] if [i['uiTokenAmount']['uiAmountString'] for i in postTokenBalances if i['owner'] == wallet] else [0]
+    SPL_pre_amount = [i['uiTokenAmount']['uiAmountString'] for i in preTokenBalances if i['owner'] == wallet] if [i['uiTokenAmount']['uiAmountString'] for i in preTokenBalances if i['owner'] == wallet] else [0]
+    token_change = [float(xi) - float(yi) for xi, yi in zip(SPL_post_amount, SPL_pre_amount)]
 
-        info = None
-        if len(token_addresses) == 2:
-            if token_change[0] > 0:
-                metadata_in = await get_metaData(token_addresses[0])
-                metadata_out = await get_metaData(token_addresses[1])
-                SPL_in = abs(token_change[0])
-                SPL_out = abs(token_change[1])
-                SPL_in_CA = token_addresses[0]
-                SPL_out_CA = token_addresses[1]
-                SPL_out_symbol = metadata_out[1]
-                logo_out = metadata_out[2] if metadata_out[2] else ""
-                SPL_in_symbol = metadata_in[1]
-                logo_in = metadata_in[2] if metadata_in[2] else ""
-                createdOn_in = metadata_in[3] if metadata_in[3] else None
-                twitter_in = metadata_in[4] if metadata_in[4] else None
-                telegram_in = metadata_in[5] if metadata_in[5] else None
-                website_in = metadata_in[6] if metadata_in[6] else None
-                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
-            elif token_change[0] < 0:
-                metadata_in =  await get_metaData(token_addresses[1])
-                metadata_out = await get_metaData(token_addresses[0])
-                SPL_in = abs(token_change[1])
-                SPL_out = abs(token_change[0])
-                SPL_in_CA = token_addresses[1]
-                SPL_out_CA = token_addresses[0]
-                SPL_out_symbol = metadata_out[1]
-                logo_out = metadata_out[2] if metadata_out[2] else ""
-                SPL_in_symbol = metadata_in[1]
-                logo_in = metadata_in[2] if metadata_in[2] else ""
-                createdOn_in = metadata_in[3] if metadata_in[3] else None
-                twitter_in = metadata_in[4] if metadata_in[4] else None
-                telegram_in = metadata_in[5] if metadata_in[5] else None
-                website_in = metadata_in[6] if metadata_in[6] else None
-                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
-        elif len(token_addresses) == 1:
-            SOL_change = (data[0]['meta']['preBalances'][0] - data['meta']['postBalances'][0]) / 1e9
-            if SOL_change < 0:
-                metadata_in = await get_metaData(token_addresses[0])
-                SPL_in = abs(token_change[0])
-                SPL_out = abs(SOL_change)
-                SPL_in_CA = token_addresses[0]
-                SPL_out_CA = 'So11111111111111111111111111111111111111112'
-                SPL_out_symbol = 'SOL'
-                logo_out = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
-                SPL_in_symbol = metadata_in[1]
-                logo_in = metadata_in[2] if metadata_in[2] else ""
-                createdOn_in = metadata_in[3] if metadata_in[3] else None
-                twitter_in = metadata_in[4] if metadata_in[4] else None
-                telegram_in = metadata_in[5] if metadata_in[5] else None
-                website_in = metadata_in[6] if metadata_in[6] else None
-                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
-            elif SOL_change > 0:
-                metadata_out = await get_metaData(token_addresses[0])
-                SPL_out = abs(token_change[0])
-                SPL_out_CA = token_addresses[0]
-                SPL_out_symbol = metadata_out[1]
-                logo_out = metadata_out[2] if metadata_out[2] else ""
-                SPL_in = abs(SOL_change)
-                SPL_in_symbol = 'So11111111111111111111111111111111111111112'
-                SPL_in_symbol = 'SOL'
-                logo_in = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
-                createdOn_in = None
-                twitter_in = None
-                telegram_in = None
-                website_in = None
-                info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
-        print(info)
-        return info
-    except Exception as e:
-        logger.error(f"Error in swapInfo: {e}")
-        return None        
+    info = None
+    if len(token_addresses) == 2:
+        if token_change[0] > 0:
+            metadata_in = await get_metaData(token_addresses[0])
+            metadata_out = await get_metaData(token_addresses[1])
+            SPL_in = abs(token_change[0])
+            SPL_out = abs(token_change[1])
+            SPL_in_CA = token_addresses[0]
+            SPL_out_CA = token_addresses[1]
+            SPL_out_symbol = metadata_out[1]
+            logo_out = metadata_out[2] if metadata_out[2] else ""
+            SPL_in_symbol = metadata_in[1]
+            logo_in = metadata_in[2] if metadata_in[2] else ""
+            createdOn_in = metadata_in[3] if metadata_in[3] else None
+            twitter_in = metadata_in[4] if metadata_in[4] else None
+            telegram_in = metadata_in[5] if metadata_in[5] else None
+            website_in = metadata_in[6] if metadata_in[6] else None
+            info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
+        elif token_change[0] < 0:
+            metadata_in =  await get_metaData(token_addresses[1])
+            metadata_out = await get_metaData(token_addresses[0])
+            SPL_in = abs(token_change[1])
+            SPL_out = abs(token_change[0])
+            SPL_in_CA = token_addresses[1]
+            SPL_out_CA = token_addresses[0]
+            SPL_out_symbol = metadata_out[1]
+            logo_out = metadata_out[2] if metadata_out[2] else ""
+            SPL_in_symbol = metadata_in[1]
+            logo_in = metadata_in[2] if metadata_in[2] else ""
+            createdOn_in = metadata_in[3] if metadata_in[3] else None
+            twitter_in = metadata_in[4] if metadata_in[4] else None
+            telegram_in = metadata_in[5] if metadata_in[5] else None
+            website_in = metadata_in[6] if metadata_in[6] else None
+            info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
+    elif len(token_addresses) == 1:
+        SOL_change = (data[0]['meta']['preBalances'][0] - data[0]['meta']['postBalances'][0]) / 1e9
+        if SOL_change > 0:
+            metadata_in = await get_metaData(token_addresses[0])
+            SPL_in = abs(token_change[0])
+            SPL_out = abs(SOL_change)
+            SPL_in_CA = token_addresses[0]
+            SPL_out_CA = 'So11111111111111111111111111111111111111112'
+            SPL_out_symbol = 'SOL'
+            logo_out = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
+            SPL_in_symbol = metadata_in[1]
+            logo_in = metadata_in[2] if metadata_in[2] else ""
+            createdOn_in = metadata_in[3] if metadata_in[3] else None
+            twitter_in = metadata_in[4] if metadata_in[4] else None
+            telegram_in = metadata_in[5] if metadata_in[5] else None
+            website_in = metadata_in[6] if metadata_in[6] else None
+            info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
+        elif SOL_change < 0:
+            metadata_out = await get_metaData(token_addresses[0])
+            SPL_out = abs(token_change[0])
+            SPL_out_CA = token_addresses[0]
+            SPL_out_symbol = metadata_out[1]
+            logo_out = metadata_out[2] if metadata_out[2] else ""
+            SPL_in = abs(SOL_change)
+            SPL_in_CA = 'So11111111111111111111111111111111111111112'
+            SPL_in_symbol = 'SOL'
+            logo_in = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
+            createdOn_in = None
+            twitter_in = None
+            telegram_in = None
+            website_in = None
+            info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
+    print(info)
+    return info       
             
 async def process_webhook(data, bot):    
     if not data:
@@ -272,10 +268,7 @@ async def process_webhook(data, bot):
     logger.info(f"Account info for tracked wallet: {tracked_wallet}")
     logger.info(f"Transaction Hash is {signature} and the wallet being tracked is {tracked_wallet}.")
     info = await swapInfo(data, signature, tracked_wallet)
-    if info:
-        await send_embedded_transaction(info, nametags, channel_ids, bot=bot)
-    else:
-        logger.error("Error processing swapInfo: Info is None")
+    await send_embedded_transaction(info, nametags, channel_ids, bot=bot)
 
 async def send_embedded_transaction(info, nametags, channel_ids, bot):
     print(channel_ids)

@@ -10,9 +10,21 @@ from aiohttp import web
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
-logger.addHandler(handler)
+fh = logging.FileHandler('discord.log', encoding='utf-8', mode='w')
+fh.setLevel(logging.DEBUG)
 
+# Create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.ERROR)
+
+# Create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+fh.setFormatter(formatter)
+ch.setFormatter(formatter)
+
+# Add the handlers to the logger
+logger.addHandler(fh)
+logger.addHandler(ch)
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
