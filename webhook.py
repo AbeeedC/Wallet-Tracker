@@ -98,6 +98,10 @@ def unpack_metadata_account(data):
     return metadata
 
 async def get_metaData(ca):
+    def ensure_https(url):
+        if url and not url.startswith("http"):
+            return "https://" + url
+        return url
     try:
         token_program = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
         token_metadata_program = Pubkey.from_string("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s")
@@ -127,9 +131,9 @@ async def get_metaData(ca):
                 symbol = metadata['data'].get('symbol', metadata['data']['symbol'])
                 logo = github_response[0].get('download_url', None)
                 createdOn = github_response[0].get('createdOn', None)
-                twitter = github_response[0].get('twitter', None)
-                telegram = github_response[0].get('telegram', None)
-                website = github_response[0].get('website', None)
+                twitter = ensure_https(github_response[0].get('twitter', None))
+                telegram = ensure_https(github_response[0].get('telegram', None))
+                website = ensure_https(github_response[0].get('website', None))
             else:
                 uri = metadata['data']['uri']
                 async with session.get(uri) as response:
@@ -141,9 +145,9 @@ async def get_metaData(ca):
                 symbol = ipfs_response.get('symbol', '')
                 logo = ipfs_response.get('image', None)
                 createdOn = ipfs_response.get('createdOn', None)
-                twitter = ipfs_response.get('twitter', None)
-                telegram = ipfs_response.get('telegram', None)
-                website = ipfs_response.get('website', None)
+                twitter = ensure_https(ipfs_response.get('twitter', None))
+                telegram = ensure_https(ipfs_response.get('telegram', None))
+                website = ensure_https(ipfs_response.get('website', None))
 
         return name, symbol, logo, createdOn, twitter, telegram, website
     except Exception as e:
@@ -176,8 +180,8 @@ async def swapInfo(data, txh, wallet):
         if token_change[0] > 0:
             metadata_in = await get_metaData(token_addresses[0])
             metadata_out = await get_metaData(token_addresses[1])
-            SPL_in = abs(token_change[0])
-            SPL_out = abs(token_change[1])
+            SPL_in = round(abs(token_change[0]),3)
+            SPL_out = round(abs(token_change[1]),3)
             SPL_in_CA = token_addresses[0]
             SPL_out_CA = token_addresses[1]
             SPL_out_symbol = metadata_out[1]
@@ -192,8 +196,8 @@ async def swapInfo(data, txh, wallet):
         elif token_change[0] < 0:
             metadata_in =  await get_metaData(token_addresses[1])
             metadata_out = await get_metaData(token_addresses[0])
-            SPL_in = abs(token_change[1])
-            SPL_out = abs(token_change[0])
+            SPL_in = round(abs(token_change[1]),3)
+            SPL_out = round(abs(token_change[0]),3)
             SPL_in_CA = token_addresses[1]
             SPL_out_CA = token_addresses[0]
             SPL_out_symbol = metadata_out[1]
@@ -209,8 +213,8 @@ async def swapInfo(data, txh, wallet):
         SOL_change = (data[0]['meta']['preBalances'][0] - data[0]['meta']['postBalances'][0]) / 1e9
         if SOL_change > 0:
             metadata_in = await get_metaData(token_addresses[0])
-            SPL_in = abs(token_change[0])
-            SPL_out = abs(SOL_change)
+            SPL_in = round(abs(token_change[0]),3)
+            SPL_out = round(abs(SOL_change),3)
             SPL_in_CA = token_addresses[0]
             SPL_out_CA = 'So11111111111111111111111111111111111111112'
             SPL_out_symbol = 'SOL'
@@ -224,11 +228,11 @@ async def swapInfo(data, txh, wallet):
             info = [SPL_out, SPL_out_CA, SPL_out_symbol, logo_out, SPL_in, SPL_in_CA, SPL_in_symbol, logo_in, wallet, txh, createdOn_in, twitter_in, telegram_in, website_in]
         elif SOL_change < 0:
             metadata_out = await get_metaData(token_addresses[0])
-            SPL_out = abs(token_change[0])
+            SPL_out = round(abs(token_change[0]),3)
             SPL_out_CA = token_addresses[0]
             SPL_out_symbol = metadata_out[1]
             logo_out = metadata_out[2] if metadata_out[2] else ""
-            SPL_in = abs(SOL_change)
+            SPL_in = round(abs(SOL_change),3)
             SPL_in_CA = 'So11111111111111111111111111111111111111112'
             SPL_in_symbol = 'SOL'
             logo_in = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
@@ -275,7 +279,7 @@ async def send_embedded_transaction(info, nametags, channel_ids, bot):
     for i in range(len(channel_ids)):
         embed = discord.Embed(
             title="Transaction Detected", 
-            description=f"{nametags[i]} has swapped {info[0]} {info[2]} for {info[4]} {info[6]}", 
+            description=f"{nametags[i]} has swapped {format(info[0], ',')} **{info[2]}** for {format(info[4], ',')} **{info[6]}**", 
             colour=0xf6ee04, 
             timestamp=datetime.datetime.now()
         )

@@ -65,9 +65,17 @@ async def on_ready():
     print(f'Channel is {channel}')
     await channel.send('Hi')     
 
+def failedtx_check(data):
+    if data[0].get('meta').get('err') is not None:
+        return True
+    else:
+        return False
+
 async def handle_webhook(request):
     from webhook import process_webhook
     data = await request.json()
+    if failedtx_check(data) is True:
+        return logger.info('Transaction failed.')
     logger.debug(f"Received webhook data: {data}")
     await process_webhook(data, bot)
     return web.Response(text="Webhook received")
